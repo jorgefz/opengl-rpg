@@ -3,7 +3,7 @@
 	<stdio.h>
 	<string.h>
 
-1611054049 source:/home/jorge/Desktop/programming/opengl-rpg/src/gltest.cpp
+1611254608 source:/home/jorge/Desktop/programming/opengl-rpg/src/gltest.cpp
 	<iostream>
 	<fstream>
 	<vector>
@@ -12,6 +12,7 @@
 	<cmath>
 	<chrono>
 	<GL/glew.h>
+	<GL/glxew.h>
 	<GLFW/glfw3.h>
 	"stb_image.h"
 	"stb_image_write.h"
@@ -500,4 +501,10 @@
 	"stb_image_write.h"
 	<windows.h>
 	<unistd.h>
+
+1547284911 /usr/include/GL/glxew.h
+	<X11/Xlib.h>
+	<X11/Xutil.h>
+	<X11/Xmd.h>
+	<GL/glew.h>
 

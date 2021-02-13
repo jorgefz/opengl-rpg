@@ -8,6 +8,7 @@
 #include <chrono>
 
 #include <GL/glew.h>
+#include <GL/glxew.h>
 #include <GLFW/glfw3.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -390,10 +391,22 @@ GLFWwindow *gl_begin(){
 		glfwTerminate();
 		return NULL;
 	}
+
 	glfwMakeContextCurrent(window);
 
-	//Sync with refresh rate
+	//vsync
 	glfwSwapInterval(1);
+
+	//glXSwapIntervalSGI(1);
+
+	//vsync GNU/Linux
+	/*
+	Display *dpy = glXGetCurrentDisplay();
+    GLXDrawable drawable = glXGetCurrentDrawable();
+    const int interval = 1;
+    if(drawable)
+		glXSwapIntervalEXT(dpy, drawable, interval);
+	*/
 
 	if(glewInit() != GLEW_OK){
 		cerr << "[GLEW] Fatal error: failed to load!" << endl;
@@ -449,13 +462,21 @@ float* generate_square_coords(float *data, int x, int y, int side){
 		vertex_coords[i] = float(pixel_coords[i])/float(norm);
 		vertex_coords[i] = vertex_coords[i]*2 - 1.0f;
 	}
-
+	/*
 	float vertices[] = {
-        // positions    					 // texture coords
+		// positions    					 // texture coords
 		vertex_coords[0], vertex_coords[1],   0.0f, 1.0f, //1.0f, 1.0f,
 		vertex_coords[2], vertex_coords[3],   1.0f, 1.0f, //0.0f, 1.0f,
 		vertex_coords[4], vertex_coords[5],   1.0f, 0.0f, //0.0f, 0.0f,
-		vertex_coords[6], vertex_coords[7],   0.0f, 0.0f, //1.0f, 0.0f
+		vertex_coords[6], vertex_coords[7],   0.0f, 0.0f  //1.0f, 0.0f
+	};
+	*/
+	float vertices[] = {
+        // positions    					 // texture coords
+		vertex_coords[0], vertex_coords[1],   0.0f, 0.5f, //1.0f, 1.0f,
+		vertex_coords[2], vertex_coords[3],   0.25f, 0.5f, //0.0f, 1.0f,
+		vertex_coords[4], vertex_coords[5],   0.25f, 0.0f, //0.0f, 0.0f,
+		vertex_coords[6], vertex_coords[7],   0.0f, 0.0f  //1.0f, 0.0f
 	};
 
 	copy(vertices, vertices+16, data);
@@ -512,9 +533,88 @@ void tilemap_init(struct tilemap_t &tilemap, int tilenum, int tilesize=50, int x
 	}
 }
 
-void tilemap_gen_texture_coords(struct tilemap_t &tilemap){
-	// Need: tileset height & width
+void tilemap_gen_texture_coords(struct tilemap_t &tilemap, int tileset_height=2, int tileset_width=4, int tile_size=8){
+	/*
+	Default 'one image' texture coords:
+		x      y
+	v1	0.0f, 1.0f,
+	v2	1.0f, 1.0f,
+	v3	1.0f, 0.0f,
+	v4	0.0f, 0.0f
+
+	For any tile:
+		IF x = 0.0f THEN t = i/tileset_width
+		IF x = 1.0f THEN t = (i+1)/tileset_width
+
+		IF y = 0.0f THEN s = j/tileset_height
+		IF y = 1.0f THEN s = (j+1)/tileset_height
+	*/
+
+	float tex_coords[tileset_height*tileset_width][8];
+
+	for(int i=0; i!=tileset_width; ++i){
+		for(int j=0; j!=tileset_height; ++j){
+			cout << " Tile ("<<i<<","<<j<<") has texture coords:" << endl;
+			float _tex_coords[] = {
+				float(i)/float(tileset_width), (float(j)+1)/float(tileset_height),
+				(float(i)+1)/float(tileset_width), (float(j)+1)/float(tileset_height),
+				(float(i)+1)/float(tileset_width), float(j)/float(tileset_height),
+				float(i)/float(tileset_width), float(j)/float(tileset_height)
+			};
+			cout << "\t " << _tex_coords[0] << ", " << _tex_coords[1] << endl;
+			cout << "\t " << _tex_coords[2] << ", " << _tex_coords[3] << endl;
+			cout << "\t " << _tex_coords[4] << ", " << _tex_coords[5] << endl;
+			cout << "\t " << _tex_coords[6] << ", " << _tex_coords[7] << endl;
+			copy(_tex_coords, _tex_coords+8, tex_coords[j*tileset_width+i]);
+		}
+	}
+
+	// Apply texture coordinates to tilemap
+	for(int t=0; t!=(tilemap.height*tilemap.width); ++t){
+		int ind = tilemap.logic_grid[t];
+		// Retrieve vertices data
+		float *vertices = tilemap.vertices + t*16;
+		// Edit vertices
+
+		vertices[V1_T] = tex_coords[ind][V1_T];
+		vertices[V1_S] = tex_coords[ind][V1_S];
+
+		vertices[V2_T] = tex_coords[ind][V2_T];
+		vertices[V2_S] = tex_coords[ind][V2_S];
+
+		vertices[V3_T] = tex_coords[ind][V3_T];
+		vertices[V3_S] = tex_coords[ind][V3_S];
+
+		vertices[V4_T] = tex_coords[ind][V4_T];
+		vertices[V4_S] = tex_coords[ind][V4_S];
+
+	/*
+		vertices[V1_T] = 0.0f;
+		vertices[V1_S] = 1.0f;
+
+		vertices[V2_T] = 1.0f;
+		vertices[V2_S] = 1.0f;
+
+		vertices[V3_T] = 1.0f;
+		vertices[V3_S] = 0.0f;
+
+		vertices[V4_T] = 0.0f;
+		vertices[V4_S] = 0.0f;
+		*/
+		/*
+		v1	0.0f, 1.0f,
+		v2	1.0f, 1.0f,
+		v3	1.0f, 0.0f,
+		v4	0.0f, 0.0f
+		*/
+		cout << " Tile " << t << endl;
+		cout << "\t " << vertices[V1_T] << ", " << vertices[V1_S] << endl;
+		cout << "\t " << vertices[V2_T] << ", " << vertices[V2_S] << endl;
+		cout << "\t " << vertices[V3_T] << ", " << vertices[V3_S] << endl;
+		cout << "\t " << vertices[V4_T] << ", " << vertices[V4_S] << endl;
+	}
 }
+
 
 void tilemap_free(struct tilemap_t &tilemap){
 	delete[] tilemap.tile_grid;
@@ -570,6 +670,7 @@ bool is_on_screen(float *vertices){
 		-1.0f, 1.0f, 0, 0
 	};
 	/*
+	// Smaller screen for testing purposes
 	float screen[] = {
 		-0.9f, -0.9f, 0, 0,
 		0.9f, -0.9f, 0, 0,
@@ -668,14 +769,24 @@ int main()
 	cout << " tile bytes: " << tile_bytes << endl;
 	cout << " channel num: " << channel_num << endl;
 
+
 	struct texture_t tiles_tex[tile_num];
 	for(int i=0; i!=tile_num; ++i){
 		texture_init(&tiles_tex[i], &tile_data[i*tile_bytes], tile_size, tile_size, channel_num);
 	}
 
+	/*
+	struct texture_t tileset;
+	int ts_width, ts_height, ts_channel_num;
+	unsigned char *img_data = stbi_load("res/tile_test2.png", &ts_width, &ts_height, &ts_channel_num, 0);
+	texture_init(&tileset, img_data, ts_height, ts_width);
+	*/
+
 	int side = 55;
 	struct tilemap_t tilemap;
 	tilemap_init(tilemap, tile_num, side, 15, 15);
+
+	tilemap_gen_texture_coords(tilemap);
 
     struct shader_t shader;
 	shader_init(shader, "res/vertex.shader", "res/fragment.shader");
