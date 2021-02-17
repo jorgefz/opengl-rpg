@@ -28,14 +28,14 @@ using namespace std;
 
 /*
 TODO
- - Implement Tileset as texture coordinates
- - Batch rendering
- - Viewport
+ - Implement Tileset as texture coordinates - DONE
+ - Batch rendering - DONE
+ - Viewport?
+ - Portals
 */
 
 GLuint indices[] = { 0, 1, 2,   // Triangle 1
-						 2, 3, 0 };	// Triangle 2
-	//
+                     2, 3, 0 };	// Triangle 2
 
 
 #define assert(x) if(!(x)) exit(-1);
@@ -134,19 +134,19 @@ struct shader_t {
 };
 
 struct shape_t {
-    GLuint vbo;		//Vertex buffer object
-    GLuint vertex_num;	// Number of vertices
-    GLuint elem_num;	// Number of elements in vertex data array
-    GLuint sdims;	// Spatial dimensions (x,y, etc)
-    GLuint tdims;	// Texture dimensions (s,t, etc)
-    float *vertex_data;
-
-    GLuint ibo;		// Index buffer object
+	GLuint vbo;		//Vertex buffer object
+	GLuint vertex_num;	// Number of vertices
+	GLuint elem_num;	// Number of elements in vertex data array
+	GLuint sdims;	// Spatial dimensions (x,y, etc)
+	GLuint tdims;	// Texture dimensions (s,t, etc)
+	float *vertex_data;
+	
+	GLuint ibo;		// Index buffer object
 	GLuint index_num;	// Number of indices in IBO
-    GLuint *index_data;
+	GLuint *index_data;
 
-    struct texture_t* texture;
-    struct shader_t* shader;
+	struct texture_t* texture;
+	struct shader_t* shader;
 };
 
 //========================================================================================================================
@@ -159,9 +159,7 @@ struct texture_t* texture_init(struct texture_t *tex, unsigned char* img_data, i
 		cout << "Warning: texture will be converted to RGBA" << endl;
 		channel_num++;
 		rgba(rgba_data, img_data, height*width);
-    } else{
-		copy(img_data, img_data + height*width*4, rgba_data);
-    }
+	} else copy(img_data, img_data + height*width*4, rgba_data);
 
 	tex->width = width;
 	tex->height = height;
@@ -175,9 +173,9 @@ struct texture_t* texture_init(struct texture_t *tex, unsigned char* img_data, i
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	//GLCall(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tex->width, tex->height, 0, GL_RGB, GL_UNSIGNED_BYTE, img_data));
 	GLCall(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex->width, tex->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba_data));
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    return tex;
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	return tex;
 }
 
 struct texture_t* texture_init(struct texture_t* tex, const char* _filepath){
@@ -402,9 +400,9 @@ GLFWwindow *gl_begin(){
 	//vsync GNU/Linux
 	/*
 	Display *dpy = glXGetCurrentDisplay();
-    GLXDrawable drawable = glXGetCurrentDrawable();
-    const int interval = 1;
-    if(drawable)
+    	GLXDrawable drawable = glXGetCurrentDrawable();
+    	const int interval = 1;
+    	if(drawable)
 		glXSwapIntervalEXT(dpy, drawable, interval);
 	*/
 
@@ -502,6 +500,10 @@ struct tilemap_t {
 	//int *layers[];
 	float *vertices;
 	struct shape_t *shapes;
+	
+	// Batch rendering
+	struct shape_t *map_shape;
+	GLuint *map_indices;
 };
 
 
@@ -512,6 +514,8 @@ void tilemap_init(struct tilemap_t &tilemap, int tilenum, int tilesize=50, int x
 	tilemap.logic_grid = new int[xsize*ysize];
 	tilemap.vertices = new float[xsize*ysize*16];
 	tilemap.shapes = new struct shape_t[xsize*ysize];
+	tilemap.map_shape = new struct shape_t;
+	tilemap.map_indices = new GLuint[6*xsize*ysize];
 
 	//Generate tile grid values
 	for(int h=0; h!=ysize; ++h){
@@ -528,9 +532,20 @@ void tilemap_init(struct tilemap_t &tilemap, int tilenum, int tilesize=50, int x
 			cout << " " << tilemap.logic_grid[w + h*xsize];
 			generate_square_coords(&tilemap.vertices[16*(w + h*xsize)], tilesize*w, tilesize*h, tilesize);
 			shape_init(tilemap.shapes[w+h*xsize], &tilemap.vertices[16*(w+h*xsize)], indices);
+			
+			for(int i=0; i!=6; ++i) tilemap.map_indices[6*(w+h*xsize)+i] = indices[i] + 4*(w+h*xsize);
+			
 		}
 		cout << endl;
 	}
+	shape_init(*tilemap.map_shape, tilemap.vertices, tilemap.map_indices, 4*xsize*ysize, 6*xsize*ysize); 
+}
+
+void tilemap_draw(struct tilemap_t &tilemap){
+	//Save vertex data in buffer
+	shape_bind(*tilemap.map_shape);
+	shape_update(*tilemap.map_shape, tilemap.vertices);	
+	GLCall(glDrawElements(GL_TRIANGLES, 6*tilemap.height*tilemap.width, GL_UNSIGNED_INT, nullptr));
 }
 
 void tilemap_gen_texture_coords(struct tilemap_t &tilemap, int tileset_height=2, int tileset_width=4, int tile_size=8){
@@ -550,68 +565,42 @@ void tilemap_gen_texture_coords(struct tilemap_t &tilemap, int tileset_height=2,
 		IF y = 1.0f THEN s = (j+1)/tileset_height
 	*/
 
-	float tex_coords[tileset_height*tileset_width][8];
+	float tx = 1.0f/tileset_width; //Fractional sides of tile in tileset
+	float ty = 1.0f/tileset_height;
 
-	for(int i=0; i!=tileset_width; ++i){
-		for(int j=0; j!=tileset_height; ++j){
-			cout << " Tile ("<<i<<","<<j<<") has texture coords:" << endl;
-			float _tex_coords[] = {
-				float(i)/float(tileset_width), (float(j)+1)/float(tileset_height),
-				(float(i)+1)/float(tileset_width), (float(j)+1)/float(tileset_height),
-				(float(i)+1)/float(tileset_width), float(j)/float(tileset_height),
-				float(i)/float(tileset_width), float(j)/float(tileset_height)
+	cout << tx << ',' << ty << endl;
+	
+	float tex_coords[tileset_height*tileset_width*8];
+	for(int x=0; x!=tileset_width; ++x){
+		for(int y=0; y!=tileset_height; ++y){
+			float _tc[] = {
+				tx*float(x),     ty*(float(y)+1),
+				tx*(float(x)+1), ty*(float(y)+1),
+				tx*(float(x)+1), ty*float(y),
+				tx*float(x),     ty*float(y)
 			};
-			cout << "\t " << _tex_coords[0] << ", " << _tex_coords[1] << endl;
-			cout << "\t " << _tex_coords[2] << ", " << _tex_coords[3] << endl;
-			cout << "\t " << _tex_coords[4] << ", " << _tex_coords[5] << endl;
-			cout << "\t " << _tex_coords[6] << ", " << _tex_coords[7] << endl;
-			copy(_tex_coords, _tex_coords+8, tex_coords[j*tileset_width+i]);
+			copy(_tc, _tc+8, tex_coords + (x*tileset_height+y)*8 );
 		}
 	}
-
+	
 	// Apply texture coordinates to tilemap
 	for(int t=0; t!=(tilemap.height*tilemap.width); ++t){
 		int ind = tilemap.logic_grid[t];
 		// Retrieve vertices data
 		float *vertices = tilemap.vertices + t*16;
 		// Edit vertices
+					
+		vertices[V1_T] = *(tex_coords + ind*8 + 0);
+		vertices[V1_S] = *(tex_coords + ind*8 + 1);
 
-		vertices[V1_T] = tex_coords[ind][V1_T];
-		vertices[V1_S] = tex_coords[ind][V1_S];
+		vertices[V2_T] = *(tex_coords + ind*8 + 2);
+		vertices[V2_S] = *(tex_coords + ind*8 + 3);
 
-		vertices[V2_T] = tex_coords[ind][V2_T];
-		vertices[V2_S] = tex_coords[ind][V2_S];
+		vertices[V3_T] = *(tex_coords + ind*8 + 4);
+		vertices[V3_S] = *(tex_coords + ind*8 + 5);
 
-		vertices[V3_T] = tex_coords[ind][V3_T];
-		vertices[V3_S] = tex_coords[ind][V3_S];
-
-		vertices[V4_T] = tex_coords[ind][V4_T];
-		vertices[V4_S] = tex_coords[ind][V4_S];
-
-	/*
-		vertices[V1_T] = 0.0f;
-		vertices[V1_S] = 1.0f;
-
-		vertices[V2_T] = 1.0f;
-		vertices[V2_S] = 1.0f;
-
-		vertices[V3_T] = 1.0f;
-		vertices[V3_S] = 0.0f;
-
-		vertices[V4_T] = 0.0f;
-		vertices[V4_S] = 0.0f;
-		*/
-		/*
-		v1	0.0f, 1.0f,
-		v2	1.0f, 1.0f,
-		v3	1.0f, 0.0f,
-		v4	0.0f, 0.0f
-		*/
-		cout << " Tile " << t << endl;
-		cout << "\t " << vertices[V1_T] << ", " << vertices[V1_S] << endl;
-		cout << "\t " << vertices[V2_T] << ", " << vertices[V2_S] << endl;
-		cout << "\t " << vertices[V3_T] << ", " << vertices[V3_S] << endl;
-		cout << "\t " << vertices[V4_T] << ", " << vertices[V4_S] << endl;
+		vertices[V4_T] = *(tex_coords + ind*8 + 6);
+		vertices[V4_S] = *(tex_coords + ind*8 + 7);	
 	}
 }
 
@@ -621,6 +610,9 @@ void tilemap_free(struct tilemap_t &tilemap){
 	delete[] tilemap.logic_grid;
 	delete[] tilemap.vertices;
 	delete[] tilemap.shapes;
+	
+	delete tilemap.map_shape;
+	delete[] tilemap.map_indices;
 }
 
 /*
@@ -769,37 +761,36 @@ int main()
 	cout << " tile bytes: " << tile_bytes << endl;
 	cout << " channel num: " << channel_num << endl;
 
-
+	/*
 	struct texture_t tiles_tex[tile_num];
 	for(int i=0; i!=tile_num; ++i){
 		texture_init(&tiles_tex[i], &tile_data[i*tile_bytes], tile_size, tile_size, channel_num);
 	}
-
-	/*
+	*/
+	
 	struct texture_t tileset;
 	int ts_width, ts_height, ts_channel_num;
 	unsigned char *img_data = stbi_load("res/tile_test2.png", &ts_width, &ts_height, &ts_channel_num, 0);
 	texture_init(&tileset, img_data, ts_height, ts_width);
-	*/
-
+	
 	int side = 55;
 	struct tilemap_t tilemap;
 	tilemap_init(tilemap, tile_num, side, 15, 15);
 
 	tilemap_gen_texture_coords(tilemap);
 
-    struct shader_t shader;
+   	struct shader_t shader;
 	shader_init(shader, "res/vertex.shader", "res/fragment.shader");
 	shader_bind(&shader);
 
 	// Player
 	struct texture_t ch_texture;
-    texture_init(&ch_texture, &tile_data[TILE_GREEN*tile_bytes], tile_size, tile_size, channel_num);
-    texture_bind(ch_texture.id);
+    	texture_init(&ch_texture, &tile_data[TILE_GREEN*tile_bytes], tile_size, tile_size, channel_num);
+    	texture_bind(ch_texture.id);
 
-    float ch_vex[16];
-    float ch_velx=0, ch_vely=0;
-    generate_square_coords(ch_vex, SCR_WIDTH/2-25, SCR_HEIGHT/2-25, 50);
+    	float ch_vex[16];
+    	float ch_velx=0, ch_vely=0;
+    	generate_square_coords(ch_vex, SCR_WIDTH/2-25, SCR_HEIGHT/2-25, 50);
 	struct shape_t character;
 	shape_init(character, ch_vex, indices);
 
@@ -833,16 +824,15 @@ int main()
 		}
 
 		is_valid_move(tilemap, character, ch_velx, ch_vely);
-
+		
+		// Drawing tilemap
+		texture_bind(tileset.id);i
 		for(int i=0; i!=tilemap.height*tilemap.width; ++i){
 			Move(&tilemap.vertices[16*i], -ch_velx, -ch_vely, false);
-			shape_bind(tilemap.shapes[i]);
-			shape_update(tilemap.shapes[i], &tilemap.vertices[16*i]);
-			texture_bind(tiles_tex[int(tilemap.tile_grid[i])].id);
-			if(is_on_screen(&tilemap.vertices[16*i]))
-				GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
 		}
-
+		tilemap_draw(tilemap);		
+		
+		// Drawing Player
 		shape_bind(character);
 		texture_bind(ch_texture.id);
 		shape_update(character, ch_vex);
@@ -858,23 +848,25 @@ int main()
 	}
 
 	int acum = 0;
-	for(int i=0; i!=int(frame_time.size()); ++i)
-		acum += frame_time.at(i);
-    double average_frame_time =  double(acum)/double(frame_time.size())/1E6;
-    cout << " Average fps was " << 1.0f/average_frame_time << endl;
+	for(int i=0; i!=int(frame_time.size()); ++i) acum += frame_time.at(i);
+    	double average_frame_time =  double(acum)/double(frame_time.size())/1E6;
+    	cout << " Average fps was " << 1.0f/average_frame_time << endl;
 
 	//Deleting everything
 	shape_unbind();
 	texture_unbind();
 	shader_unbind();
 
-    shader_delete(shader);
+    	shader_delete(shader);
 
 	tilemap_free(tilemap);
-
+	
+	glDeleteTextures(1, &tileset.id);
+	/*
 	for(int i=0; i!=tile_num; ++i){
 		glDeleteTextures(1, &tiles_tex[i].id);
 	}
+	*/
 
 	glDeleteTextures(1, &ch_texture.id);
 	shape_free(character);

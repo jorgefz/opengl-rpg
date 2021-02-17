@@ -1,0 +1,7 @@
+CC=g++
+
+CFLAGS= -Wall -Wextra -lglfw -lglut -lGL -lGLEW -I/src
+
+gltest: src/gltest.cpp
+	$(CC) -o bin/gltest gltest.cpp $(CFLAGS)
+
