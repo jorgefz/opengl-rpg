@@ -22,35 +22,45 @@
 
 /*
 	TODO
-- Key to change current tile - DONE
+
+Editor
 - Key to switch between logic and tile grids
 - Key to save
 - New command actually creates new file
-- Mouse pointer to draw - DONE
 - UI element that displays current chosen tile
+- Scrolling
 
-- Improve shape management
-- Tilemap: make a function like tilemap_gen_texture_coords for single tile
-- Tilemap: variable with number of tiles in tileset and other data.
-	Hence reduce number of arguments in tilemap_gen_texture_coords.
-	WHy does gen_texture_coords work with only one parameter??
-- Tilemap: make a good tilemap
+Development
+- Find better place to put to-do.
+- Versioning system
+
+Graphical
+- Testing: make (or find) a good tileset texture
+
+Engine
+- Coordinate Systems
+	Lay out world-to-screen coordinate conversions properly
 - Tilemap: normalize values for logic grid.
 	Hence fix TILE_SPAWN value
+- UI System
+	1) Static shapes with uniform color
+	2) Make them display information (current selected tile to draw?)
+
 */
 
 
 GLuint cooldown = 15;
 GLuint chosen_tile = 0;
 
+/*
 struct Engine::tilemap_t* tilemap_fcreate(struct Engine::tilemap_t& tilemap, string &ftilemap, string &ftileset, GLuint width, GLuint height){
 	//Create tilemap file and fill it with template/zeroes and a spawn
 	// Write to file
 	// Close tilemap
 }
+*/
 
-
-bool process_input(GLFWwindow* window, struct Engine::shape_t cursor, struct Engine::tilemap_t &tmap, float &dx, float &dy){
+bool ProcessInput(GLFWwindow* window, Engine::Tilemap &tmap, float &dx, float &dy){
 	// Key states for player movement
 	int w_state = glfwGetKey(window, GLFW_KEY_W);
 	int s_state = glfwGetKey(window, GLFW_KEY_S);
@@ -84,10 +94,8 @@ bool process_input(GLFWwindow* window, struct Engine::shape_t cursor, struct Eng
 	// Change tile option, mouse cursor
 	if( glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS ){
 		double mouse_x, mouse_y;
-		glfwGetCursorPos(window, &mouse_x, &mouse_y);
-
-		// Get window position and size
 		int sz_x, sz_y; // from upper left corner
+		glfwGetCursorPos(window, &mouse_x, &mouse_y);
 		glfwGetFramebufferSize(window, &sz_x, &sz_y);
 			
 		// Mouse on screen
@@ -95,10 +103,10 @@ bool process_input(GLFWwindow* window, struct Engine::shape_t cursor, struct Eng
 			//Get fractional positions
 			float cx = 2*(float(mouse_x)/float(sz_x) - 0.5f);
 			float cy = 2*(float(sz_y - mouse_y)/float(sz_y) - 0.5f);
-			int tile_id = Engine::get_current_tile(tmap, cx, cy);
-			if(tile_id != tmap.width*tmap*height){
+			int tile_id = tmap.GetTile(cx, cy);
+			if(tile_id != tmap.width*tmap.height and tmap.logic_grid[tile_id] != chosen_tile){
 				tmap.logic_grid[tile_id] = chosen_tile;
-				Engine::tilemap_gen_texture_coords(tmap);
+				tmap.GenTileTextureCoords(tile_id);
 			}
 		}
 		
@@ -111,99 +119,81 @@ bool process_input(GLFWwindow* window, struct Engine::shape_t cursor, struct Eng
 }
 
 
-int main(int argc, char** argv)
-{
-	string ftilemap, ftileset, mode;
-	GLuint width, height;
-
-	float vexcursor[16];
-    	float dx=0, dy=0;
-	int tileside = 50;
+void ParseArgs(int argc, char** argv, string& ftilemap, string& ftileset){
 	
-	GLFWwindow *window;
-	struct Engine::tilemap_t tilemap;
-   	struct Engine::shader_t shader;	
-	struct Engine::shape_t cursor;
-	struct Engine::texture_t texcursor;
-
-	// Input validation
 	if( argc < 4 ){
 		cout << "Not enough arguments" << endl;
-		return 1;
+		exit(-1);
 	}
-	mode = argv[1];
+	string mode = argv[1];
 	ftilemap  = argv[2];
 	ftileset = argv[3];
 
 	if(mode == "new"){
 		if(argc < 6){
 			cout << "Missing new tilemap dimensions" << endl;
-			return 1;
+			exit(-1);
 		} else{
 			string swidth = argv[4];
 			string sheight = argv[5];
-			width = std::stoi(swidth);
-			height = std::stoi(sheight);
+			int width = std::stoi(swidth);
+			int height = std::stoi(sheight);
 			cout << width << " " << height << endl;
 		}
 	} else if(mode != "load"){
 		cout << " Unknown mode " << mode << endl;
-		return 1;
+		exit(-1);
 	}	
 	cout << "Loading tilemap " << ftilemap << " and tileset " << ftileset <<"..."<< endl;
+}
 
+
+
+int main(int argc, char** argv)
+{
+	string ftilemap, ftileset;
+
+	ParseArgs(argc, argv, ftilemap, ftileset);
+
+    	float dx=0, dy=0;
+	int tileside = 50;
+
+	GLFWwindow *window;
 	window = Engine::gl_begin(1280, 720);
-	glViewport(0, 0, 1280, 720);
-	std::srand( std::time(nullptr) );
-	
+
+	// Shader
+	string vshader = "res/vertex.shader";
+	string fshader = "res/fragment.shader";
+	Engine::Shader shader;
+	shader.Init(vshader, fshader);
+	shader.Bind();
+
 	// Tilemap
-	Engine::tilemap_init(tilemap, ftilemap, ftileset, tileside);
-	Engine::shader_init(shader, "res/vertex.shader", "res/fragment.shader");
-	Engine::shader_bind(&shader);
+	Engine::Tilemap tmap;
+	tmap.Init(ftilemap, ftileset, tileside);
 
 	// Cursor
-	Engine::texture_init(&texcursor, "res/cursor.png");
-	Engine::texture_bind(texcursor.id);
+	string texcursor_path = "res/cursor.png";
+	Engine::Shape shape;
+	shape.Init(texcursor_path, 50, 50);
 
-    	Engine::generate_square_coords(vexcursor, Engine::SCR_WIDTH/2-25, Engine::SCR_HEIGHT/2-25, 50);
-	Engine::shape_init(cursor, vexcursor, Engine::indices);
-
+	
 	while( !glfwWindowShouldClose(window) ){
 
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		if( !process_input(window, cursor, tilemap, dx, dy) ) break;
+		ProcessInput(window, tmap, dx, dy);	
 		
-		// Drawing tilemap
-		Engine::tilemap_translate(tilemap, -dx, -dy);
-		Engine::tilemap_draw(tilemap);
+		tmap.Move(-dx, -dy);
+		tmap.Draw();
+
+		shape.Draw();
 		
-		// Drawing cursor
-		Engine::shape_bind(cursor);
-		Engine::texture_bind(texcursor.id);
-		Engine::shape_update(cursor, vexcursor);
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
-
-		//Resizing
-		int screen_height, screen_width;
-		glfwGetFramebufferSize(window, &screen_height, &screen_width);		
-		glViewport(0, 0, screen_height, screen_width);
-
+		Engine::glOnWindowResize(window);
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
 
-	//Deleting everything
-	Engine::shape_unbind();
-	Engine::texture_unbind();
-	Engine::shader_unbind();
-
-    	Engine::shader_delete(shader);
-	Engine::tilemap_free(tilemap);
-	Engine::texture_delete(texcursor);
-	Engine::shape_free(cursor);
-
 	glfwTerminate();
-
 	return 0;
 }
