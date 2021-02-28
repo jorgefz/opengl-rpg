@@ -21,15 +21,13 @@
 #include "Engine.h"
 
 
-using namespace std;
-
-
 
 
 namespace Engine {
 
-// ============== Global Namespace Variables ==================
-GLuint indices[6] = {0, 1, 2, 2, 3, 0};
+
+	
+// ============== Global Namespace Variables 
 
 const GLuint INDICES[6] = {0, 1, 2, 2, 3, 0};
 const GLuint TILE_SZ = 50;
@@ -39,27 +37,27 @@ GLuint SCR_WIDTH = 0;
 GLuint SCR_HEIGHT = 0;
 
 
-// ============== TEXTURE METHODS ================
+// ============== TEXTURE METHODSº
 //Constructor
 Texture::Texture(): filepath() {
 	id = 0; width = 0; height = 0; channel_num = 0;
 }
 
-void Texture::Init(string& fpath, int mode){
+void Texture::Init(std::string& fpath, int mode){
 	unsigned char *image_data;
 	this->filepath = fpath;	
 	image_data = stbi_load(fpath.c_str(), &this->width, &this->height, &this->channel_num, 0);
 	if(!image_data){
-		cerr << "Error: failed to load image '" << fpath << "'" << endl;
+		std::cerr << "Error: failed to load image '" << fpath << "'" << std::endl;
 		exit(-1);
 	}
    	
 	unsigned char rgba_data[this->height * this->width * 4];
 	if(this->channel_num == 3 and mode == GL_RGBA){
-		cout << "Warning: texture '" << fpath << "' will be converted to RGBA" << endl;
+		std::cout << "Warning: texture '" << fpath << "' will be converted to RGBA" << std::endl;
 		this->channel_num++;
 		rgba(rgba_data, image_data, this->height * this->width);
-	} else copy(image_data, image_data + this->height * this->width * 4, rgba_data);
+	} else std::copy(image_data, image_data + this->height * this->width * 4, rgba_data);
 	
 	glGenTextures(1, &this->id);
 	glBindTexture(GL_TEXTURE_2D, this->id);
@@ -96,8 +94,8 @@ Shader::Shader(): vpath(), fpath() {
 	program = 0;
 }
 
-void Shader::Init(string& vpath, string& fpath){
-	string vertex_source, fragment_source;
+void Shader::Init(std::string& vpath, std::string& fpath){
+	std::string vertex_source, fragment_source;
 	this->vpath = vpath;
 	this->fpath = fpath;
 
@@ -119,7 +117,7 @@ void Shader::Init(string& vpath, string& fpath){
 	glDeleteShader(fs);
 }
 
-GLuint Shader::Compile(GLenum type, string& source){	
+GLuint Shader::Compile(GLenum type, std::string& source){	
 	GLuint id = glCreateShader(type);
 	const char* src = source.c_str();
 	glShaderSource(id, 1, &src, nullptr);
@@ -134,8 +132,8 @@ GLuint Shader::Compile(GLenum type, string& source){
 		// Stack allocator
 		char *message = static_cast<char*>(alloca(length * sizeof(char)));
 		glGetShaderInfoLog(id, length, &length, message);
-		cerr << "[GL] Error: failed to compile shader!" << endl;
-		cerr << message << endl;
+		std::cerr << "[GL] Error: failed to compile shader!" << std::endl;
+		std::cerr << message << std::endl;
 		glDeleteShader(id);
 		exit(-1);
 	}
@@ -165,12 +163,12 @@ Shape::Shape(): vertices(), indices(), texture() {
 
 
 //Rectangle Initialization
-void Shape::Init(string& texture_path, GLuint sidex, GLuint sidey) {
+void Shape::Init(std::string& texture_path, GLuint sidex, GLuint sidey) {
 	// Param init
 	this->sdims = 2; // Spatial dimensions
        	this->tdims = 2; // Texture dimensions
-	this->vertices = vector<float>(16);
-	this->indices = vector<GLuint>(Engine::INDICES, Engine::INDICES+6);
+	this->vertices = std::vector<float>(16);
+	this->indices = std::vector<GLuint>(Engine::INDICES, Engine::INDICES+6);
 	this->texture.Init(texture_path);
 
 	GenerateRectangleCoords(&this->vertices[0], SCR_WIDTH/2-sidex/2, SCR_HEIGHT/2-sidey/2, sidex, sidey);
@@ -195,7 +193,7 @@ void Shape::Init(string& texture_path, GLuint sidex, GLuint sidey) {
 }
 
 // Generic shape initializer
-void Shape::Init(vector<float>& verts, vector<GLuint>& inds, int sdims, int tdims) {
+void Shape::Init(std::vector<float>& verts, std::vector<GLuint>& inds, int sdims, int tdims) {
 
 	this->sdims = sdims;
 	this->tdims = tdims;
@@ -223,7 +221,7 @@ void Shape::Init(vector<float>& verts, vector<GLuint>& inds, int sdims, int tdim
 }
 
 void Shape::Update(float* new_vertices){
-	if(new_vertices) vertices = vector<float>(new_vertices, new_vertices+vertices.size());
+	if(new_vertices) vertices = std::vector<float>(new_vertices, new_vertices+vertices.size());
 	
 	glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
 	glBufferData(GL_ARRAY_BUFFER, this->vertices.size()*sizeof(float), &this->vertices[0], GL_DYNAMIC_DRAW);
@@ -240,7 +238,7 @@ void Shape::Update(float* new_vertices){
 	glVertexAttribPointer( 1, this->tdims, GL_FLOAT, GL_FALSE, (this->sdims+this->tdims)*sizeof(float), (void*)(this->sdims*sizeof(float)) );
 }
 
-void Shape::SetTexture(string& tpath){
+void Shape::SetTexture(std::string& tpath){
 	if(this->texture.id != 0) return; //Texture already set
 	this->texture.Init(tpath);
 }
@@ -288,7 +286,7 @@ bool Shape::Collides(Shape& obstacle){
 	return false;
 }
 
-bool Shape::Collides(vector<float>& obstacle){
+bool Shape::Collides(std::vector<float>& obstacle){
 	float x,y;
 	for(int i=0; i!=4; i++){
 		x = this->vertices[4*i];
@@ -314,7 +312,7 @@ bool Shape::EnclosesPoint(float x, float y){
 }
 
 bool Shape::OnScreen(){
-	vector<float> screen_pos = {
+	std::vector<float> screen_pos = {
 		-1.0f, -1.0f, 0, 0,
 		 1.0f, -1.0f, 0, 0,
 		 1.0f,  1.0f, 0, 0,
@@ -340,39 +338,39 @@ Shape::~Shape(){
 
 // ======================== TILEMAP METHODS =======================
 
-Tilemap::Tilemap(): shape(), tileset() {
+Tilemap::Tilemap(): shape(), tileset(), ftmap() {
 	height=0; width=0; tilesize=0, tset_tilenum=0;
 	tile_grid=nullptr; logic_grid=nullptr;
 	//layers = nullptr;
 }
 
 
-void Tilemap::Init(string &tilemap_file, string &tileset_file, int tilesize) {
+void Tilemap::Init(std::string &tilemap_file, std::string &tileset_file, int tilesize) {
 		
-	Read(tilemap_file);
+	this->Read(tilemap_file);
 	this->tileset.Init(tileset_file); //Rely on internal shape texture instead
 
 	#ifdef DEBUG
-	cout << "[DEBUG] Logic Grid" << endl; 
+	std::cout << "[DEBUG] Logic Grid" << std::endl;
 	for(int i=0; i!=this->width*this->height; ++i){
-		cout << this->logic_grid[i] << " ";
-		if((i+1) % this->width == 0) cout << endl;
+		std::cout << this->logic_grid[i] << " ";
+		if((i+1) % this->width == 0) std::cout << std::endl;
 	}
-	cout << endl;
-	cout << "[DEBUG] Tile Grid" << endl;
+	std::cout << std::endl;
+	std::cout << "[DEBUG] Tile Grid" << std::endl;
 	for(int i=0; i!=this->width*this->height; ++i){
-		cout << this->tile_grid[i] << " ";
-		if((i+1) % this->width == 0) cout << endl;
+		std::cout << this->tile_grid[i] << " ";
+		if((i+1) % this->width == 0) std::cout << std::endl;
 	}
-	cout << endl;
+	std::cout << std::endl;
 	#endif //DEBUG
 
 	// Initialize params
 	this->tilesize = tilesize;
 	this->tset_tilenum = this->tileset.width * this->tileset.height / TSET_PIX / TSET_PIX;
 
-	vector<float> vertices(width*height*16);
-	vector<GLuint> indices(width*height*6);
+	std::vector<float> vertices(width*height*16);
+	std::vector<GLuint> indices(width*height*6);
 
 	// IMPROVE THIS
 	for(int h=0; h!=this->height; ++h){
@@ -397,16 +395,17 @@ void Tilemap::Init(string &tilemap_file, string &tileset_file, int tilesize) {
 	this->CenterSpawn();
 }
 
-void Tilemap::Write(string &filename){
+void Tilemap::Write(std::string &filename){
 }
 
-void Tilemap::Read(string &filename){
+void Tilemap::Read(std::string &filename){
 	
-	fstream file(filename.c_str(), ios::binary|ios::in );
+	std::fstream file(filename.c_str(), std::ios::binary|std::ios::in );
 	if(!file.is_open()){
-		cout << "Error opening file " << filename << endl;
+		std::cerr << "Error opening file " << filename << std::endl;
 		exit(-1);
 	}
+	this->ftmap = filename;
 	char ch;
 
 	// Reading width and height
@@ -421,7 +420,7 @@ void Tilemap::Read(string &filename){
 	// Reading tile grid
 	for(int i=0; i!=this->width*this->height; ++i){
 		if(!file.good()){
-			cout << "Could not read tilemap" << endl;
+			std::cout << "Could not read tilemap" << std::endl;
 			exit(-1);
 		}
 		file.get(ch);
@@ -430,7 +429,7 @@ void Tilemap::Read(string &filename){
 	// Reading tile grid
 	for(int i=0; i!=this->width*this->height; ++i){
 		if(!file.good()){
-			cout << "Could not read tilemap" << endl;
+			std::cout << "Could not read tilemap" << std::endl;
 			exit(-1);
 		}
 		file.get(ch);
@@ -488,9 +487,6 @@ void Tilemap::GenTextureCoords(){
 
 void Tilemap::Draw(){
 	tileset.Bind();
-	//shape.Bind();
-	//shape.Update();
-	//GLCall(glDrawElements(GL_TRIANGLES, 6*tilemap.height*tilemap.width, GL_UNSIGNED_INT, nullptr));
 	shape.Draw();
 }
 
@@ -529,8 +525,8 @@ bool GLCheckError(const char* func, const char* file, int line){
 	do {
 		err = glGetError();
 		if(err != 0) {
-			cout << "[GL] Error " << err << " (" << "0x" << hex << err << ")" <<
-			" -> " << func << " " << file << ":" << line << endl;
+			std::cout << "[GL] Error " << err << " (" << "0x" << std::hex << err << ")" <<
+			" -> " << func << " " << file << ":" << line << std::endl;
 		}
 	} while(err != 0);
 	return true;
@@ -543,17 +539,17 @@ GLFWwindow *GLBegin(GLuint width, GLuint height, bool fullscreen){
 	SCR_HEIGHT = height;
 
 	if(!glfwInit()) {
-		cerr << "[GLFW] Fatal error: failed to load!" << endl;
+		std::cerr << "[GLFW] Fatal error: failed to load!" << std::endl;
 		exit(-1);
 	}
 	if( (width%16 != 0) or (height%9 != 0) ){
-		cout << " Error: screen resolution must have 16:9 aspect ratio " << endl;
+		std::cout << " Error: screen resolution must have 16:9 aspect ratio " << std::endl;
 		exit(-1);
 	}
 	fullscreen ? monitor = glfwGetPrimaryMonitor() : monitor = NULL;
 	window = glfwCreateWindow(SCR_WIDTH,SCR_HEIGHT, "OpenGL 2D RPG", monitor, NULL);
 	if(!window){
-		cerr << "[GLFW] Fatal error: failed to create window" << endl;
+		std::cerr << "[GLFW] Fatal error: failed to create window" << std::endl;
 		glfwTerminate();
 		exit(-1);
 	}
@@ -561,22 +557,22 @@ GLFWwindow *GLBegin(GLuint width, GLuint height, bool fullscreen){
 	glfwSwapInterval(1); // activate VSYNC, problems with NVIDIA cards
 	glViewport(0, 0, width, height);
 	if(glewInit() != GLEW_OK){
-		cerr << "[GLEW] Fatal error: failed to load!" << endl;
+		std::cerr << "[GLEW] Fatal error: failed to load!" << std::endl;
 		exit(-1);
 	}
-	cout << "[GLEW] Version " << glewGetString(GLEW_VERSION) << endl;
+	std::cout << "[GLEW] Version " << glewGetString(GLEW_VERSION) << std::endl;
 	return window;
 }
 
-string* FileReadLines(string& lines, const char* filepath){
-	ifstream stream(filepath);
-	string line;
-	stringstream ss;
+std::string* FileReadLines(std::string& lines, const char* filepath){
+	std::ifstream stream(filepath);
+	std::string line;
+	std::stringstream ss;
 	if(stream.fail()){
-		cout << "Error: shader file '" << filepath << "' not found" << endl;
+		std::cout << "Error: shader file '" << filepath << "' not found" << std::endl;
 		exit(-1);
 	}
-	while(getline(stream, line)) ss << line << '\n';
+	while(std::getline(stream, line)) ss << line << '\n';
 	lines = ss.str();
 	return &lines;
 }
@@ -604,7 +600,7 @@ void GenerateRectangleCoords(float* vertices, int x, int y, int side_x, int side
 		vertex_coords[i] = float(pixel_coords[i])/float(norm);
 		vertex_coords[i] = vertex_coords[i]*2 - 1.0f;
 	}
-	vector<float> vert = {
+	std::vector<float> vert = {
 		vertex_coords[0], vertex_coords[1],   0.0f, 1.0f, //dummy texture coords
 		vertex_coords[2], vertex_coords[3],   1.0f, 1.0f,
 		vertex_coords[4], vertex_coords[5],   1.0f, 0.0f,
@@ -636,6 +632,49 @@ void VerticesTranslate(float *vertices, float velx, float vely){
 	vertices[V1_Y] += vely; vertices[V2_Y] += vely; vertices[V3_Y] += vely; vertices[V4_Y] += vely;	
 }
 
+// Resizes viewport if window dimensions are changed
+void glOnWindowResize(GLFWwindow* window){	
+	int screen_height, screen_width;
+	glfwGetFramebufferSize(window, &screen_height, &screen_width);		
+	glViewport(0, 0, screen_height, screen_width);
+	SCR_WIDTH = screen_width;
+	SCR_HEIGHT = screen_height;
+}
+
+/*
+Converts pixel data from RGB to RGBA.
+Return data must have at least (total bytes + pixels) memory spaces.
+Fills new alpha channels with given value (default = 255
+*/
+unsigned char* rgba(unsigned char *dest, unsigned char* data, int pixels, unsigned char alpha){
+	unsigned char* ptr = data;
+	unsigned char* cpy = dest;
+	for(int p=0; p!=pixels; ++p){
+		std::copy(ptr, ptr+3, cpy); // copy rgb
+		ptr += 3;
+		cpy += 3;
+		*cpy = (unsigned char)alpha; // add alpha, default 0xFF
+		cpy++;
+	}
+	return dest;
+}
+
+/*
+Converts pixel data from RGBA to RGB.
+Return data must have at least (total bytes - pixels) memory spaces.
+*/
+unsigned char* rgb(unsigned char* dest, unsigned char* data, int pixels){
+	unsigned char* ptr = data;
+	unsigned char* cpy = dest;
+	for(int p=0; p!=pixels; ++p){
+		std::copy(ptr, ptr+3, cpy); // copy rgb
+		ptr += 4;
+		cpy += 3;
+	}
+	return dest;
+}
+
+
 /*
 // Checks if next move will place player in a forbidden tile
 bool is_valid_move(struct tilemap_t &tilemap, struct shape_t &player, float &velx, float &vely){
@@ -659,20 +698,21 @@ bool is_valid_move(struct tilemap_t &tilemap, struct shape_t &player, float &vel
 
 //=======================================================================================
 
+/*
 GLFWwindow *gl_begin(GLuint width, GLuint height, bool fullscreen){
 	
 	GLFWwindow *window;
 	GLFWmonitor *monitor;	
 
 	if(!glfwInit()) {
-		cerr << "[GLFW] Fatal error: failed to load!" << endl;
+		std::cerr << "[GLFW] Fatal error: failed to load!" << std::endl;
 		exit(-1);
 	}
 	
 	fullscreen ? monitor = glfwGetPrimaryMonitor() : monitor = NULL;
 
 	if( (width%16 != 0) or (height%9 != 0) ){
-		cout << " Error: screen resolution must have 16:9 aspect ratio " << endl;
+		std::cout << " Error: screen resolution must have 16:9 aspect ratio " << std::endl;
 		exit(-1);
 	}
 
@@ -687,7 +727,7 @@ GLFWwindow *gl_begin(GLuint width, GLuint height, bool fullscreen){
 
 	window = glfwCreateWindow(SCR_WIDTH,SCR_HEIGHT, "OpenGL 2D RPG", monitor, NULL);
 	if(!window){
-		cerr << "[GLFW] Fatal error: failed to create window" << endl;
+		std::cerr << "[GLFW] Fatal error: failed to create window" << std::endl;
 		glfwTerminate();
 		exit(-1);
 	}
@@ -698,56 +738,12 @@ GLFWwindow *gl_begin(GLuint width, GLuint height, bool fullscreen){
 	glViewport(0, 0, width, height);
 
 	if(glewInit() != GLEW_OK){
-		cerr << "[GLEW] Fatal error: failed to load!" << endl;
+		std::cerr << "[GLEW] Fatal error: failed to load!" << std::endl;
 		exit(-1);
 	}
-	cout << "[GLEW] Version " << glewGetString(GLEW_VERSION) << endl;
+	std::cout << "[GLEW] Version " << glewGetString(GLEW_VERSION) << std::endl;
 	return window;
 }
-
-// Resizes viewport if window dimensions are changed
-void glOnWindowResize(GLFWwindow* window){	
-	int screen_height, screen_width;
-	glfwGetFramebufferSize(window, &screen_height, &screen_width);		
-	glViewport(0, 0, screen_height, screen_width);
-	SCR_WIDTH = screen_width;
-	SCR_HEIGHT = screen_height;
-}
-
-
-/*
-Converts pixel data from RGB to RGBA.
-Return data must have at least (total bytes + pixels) memory spaces.
-Fills new alpha channels with given value (default = 255
-*/
-unsigned char* rgba(unsigned char *dest, unsigned char* data, int pixels, unsigned char alpha){
-	unsigned char* ptr = data;
-	unsigned char* cpy = dest;
-	for(int p=0; p!=pixels; ++p){
-		copy(ptr, ptr+3, cpy); // copy rgb
-		ptr += 3;
-		cpy += 3;
-		*cpy = (unsigned char)alpha; // add alpha, default 0xFF
-		cpy++;
-	}
-	return dest;
-}
-
-/*
-Converts pixel data from RGBA to RGB.
-Return data must have at least (total bytes - pixels) memory spaces.
-*/
-unsigned char* rgb(unsigned char* dest, unsigned char* data, int pixels){
-	unsigned char* ptr = data;
-	unsigned char* cpy = dest;
-	for(int p=0; p!=pixels; ++p){
-		copy(ptr, ptr+3, cpy); // copy rgb
-		ptr += 4;
-		cpy += 3;
-	}
-	return dest;
-}
-
 
 string* file_read_lines(string& lines, const char* filepath){
 	ifstream stream(filepath);
@@ -816,10 +812,12 @@ float* generate_square_coords(float *data, int x, int y, int side_x, int side_y)
 	copy(vertices, vertices+16, data);
 	return data;
 }
-
+*/
 
 // ====================== TEXTURE FUNCTIONS =========================
 
+
+/*
 struct texture_t* texture_init(struct texture_t *tex, unsigned char* img_data, int height, int width, int channel_num){
 
 	unsigned char rgba_data[height * width * 4];
@@ -1070,7 +1068,7 @@ struct shape_t* shape_update(struct shape_t& shape, float *new_vertices){
 	glVertexAttribPointer( 1, shape.tdims, GL_FLOAT, GL_FALSE, (shape.sdims+shape.tdims)*sizeof(float), (void*)(shape.sdims*sizeof(float)) );
 	return &shape;
 }
-
+*/
 /*
 struct shape_t* shape_set_texture(struct shape_t& shape, const char* texpath){
 	shape.texture = new struct texture_t;
@@ -1092,7 +1090,7 @@ struct shape_t* shape_set_shader(struct shape_t& shape, const char* _vertex_shad
 	return &shape;
 }
 */
-
+/*
 void shape_bind(struct shape_t& shape){
 	glBindBuffer(GL_ARRAY_BUFFER, shape.vbo );
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, shape.ibo );
@@ -1293,7 +1291,7 @@ struct tilemap_t* tilemap_init(struct tilemap_t &tm, string &tilemap_fname, stri
 
 	return &tm; 
 }
-
+*/
 /*
 void tilemap_init(struct tilemap_t &tilemap, int tilenum, int tilesize=50, int xsize=10, int ysize=10){
 	tilemap.height = ysize;
@@ -1335,7 +1333,7 @@ void tilemap_init(struct tilemap_t &tilemap, int tilenum, int tilesize=50, int x
 	shape_init(tilemap.map_shape, tilemap.vertices, tilemap.map_indices, 4*xsize*ysize, 6*xsize*ysize); 
 }
 */
-
+/*
 void tilemap_draw(struct tilemap_t &tilemap){
 	texture_bind(tilemap.tileset.id);
 	shape_bind(tilemap.map_shape);
@@ -1359,12 +1357,13 @@ void shape_get_center(float *vertices, float &cx, float &cy){
 	cx = (vertices[V2_X] + vertices[V1_X])/2.0;
 	cy = (vertices[V4_Y] + vertices[V1_Y])/2.0;
 }
-
+*/
 
 /*
 Returns true if two squares overlap,
 by checking if any of the four vertices of a square is within the other square.
 */
+/*
 bool shapes_collide(float *shape1, float *shape2){
 	float x,y;
 	for(int i=0; i!=4; i++){
@@ -1416,9 +1415,10 @@ bool is_valid_move(struct tilemap_t &tilemap, struct shape_t &player, float &vel
 	}
 	return true;
 }
-
+*/
 
 //True if a shape is visible on screen
+/*
 bool is_on_screen(float *vertices){
 
 	float screen[] = {
@@ -1427,15 +1427,15 @@ bool is_on_screen(float *vertices){
 		1.0f, 1.0f, 0, 0,
 		-1.0f, 1.0f, 0, 0
 	};
-	/*
+	
 	// Smaller screen for testing purposes
-	float screen[] = {
-		-0.9f, -0.9f, 0, 0,
-		0.9f, -0.9f, 0, 0,
-		0.9f, 0.9f, 0, 0,
-		-0.9f, 0.9f, 0, 0
-	};
-	*/
+	//float screen[] = {
+	//	-0.9f, -0.9f, 0, 0,
+	//	0.9f, -0.9f, 0, 0,
+	//	0.9f, 0.9f, 0, 0,
+	//	-0.9f, 0.9f, 0, 0
+	//};
+	
 	return shapes_collide(vertices, screen);
 }
 
@@ -1500,7 +1500,7 @@ unsigned char* load_tileset(const char *atlas_filename, int *_tile_bytes, int *_
 
 	return tile_data;
 }
-
+*/
 
 } // namespace Engine
 

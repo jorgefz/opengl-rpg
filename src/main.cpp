@@ -20,36 +20,67 @@
 #include "stb_image_write.h"
 
 
+bool IsValidMove(Engine::Tilemap &tmap, Engine::Shape &player, float &velx, float &vely){
+
+	bool xmove=true, ymove=true;
+	float vx=velx, vy=vely;
+
+	// x movement	
+	player.Move(velx, 0);	
+	for(int i=0; i!=tmap.height*tmap.width; ++i){
+		if(tmap.logic_grid[i] != Engine::TILE_BOUND) continue;
+		// FIX THIS - GetTileVert method and shape.Collides accepts float array
+		std::vector<float> tile_vert(&tmap.shape.vertices[16*i], &tmap.shape.vertices[16*i]+16);
+		if(player.Collides(tile_vert)){
+			velx=0;
+			xmove = false;
+			break;
+		}
+	}
+	player.Move(-vx, 0);
+
+	// y movement
+	player.Move(0, vely);
+	for(int i=0; i!=tmap.height*tmap.width; ++i){
+		if(tmap.logic_grid[i] != Engine::TILE_BOUND) continue;
+		// FIX THIS - GetTileVert method and shape.Collides accepts float array
+		std::vector<float> tile_vert(&tmap.shape.vertices[16*i], &tmap.shape.vertices[16*i]+16);
+		if(player.Collides(tile_vert)){
+			vely=0;
+			ymove = false;
+			break;
+		}
+	}
+	player.Move(0, -vy);
+
+	return (xmove and ymove);
+}
 
 
 int main()
 {
 
-	GLFWwindow *window = Engine::gl_begin(1280, 720);
+	GLFWwindow *window = Engine::GLBegin(1280, 720);
 	
 	std::srand( std::time(nullptr) );
 	
 	int side = 55;
-	struct Engine::tilemap_t tilemap;
-	string tm = "test.tm";
-	string ts = "res/tile_test2.png";
-	Engine::tilemap_init(tilemap, tm, ts, side);
+    	float velx=0, vely=0;
+	std::string tm = "test3.tm";
+	std::string ts = "res/tile_test2.png";
+	std::string vshader("res/vertex.shader");
+	std::string fshader("res/fragment.shader");
+	std::string player_tex("res/player.jpg");
 
-   	struct Engine::shader_t shader;
-	Engine::shader_init(shader, "res/vertex.shader", "res/fragment.shader");
-	Engine::shader_bind(&shader);
+	Engine::Tilemap tilemap;
+	Engine::Shader shader;
+	Engine::Shape player;
 
-	// Player	
-	struct Engine::texture_t ch_texture;
-    	//Engine::texture_init(&ch_texture, &tile_data, tile_size, tile_size, channel_num);
-    	Engine::texture_init(&ch_texture, "res/output_tile.jpg");
-	Engine::texture_bind(ch_texture.id);
+	tilemap.Init(tm, ts, side);
+	shader.Init(vshader, fshader);
+	player.Init(player_tex, 50, 50);
 
-	float ch_vex[16];
-    	float ch_velx=0, ch_vely=0;
-    	Engine::generate_square_coords(ch_vex, Engine::SCR_WIDTH/2-25, Engine::SCR_HEIGHT/2-25, 50);
-	struct Engine::shape_t character;
-	Engine::shape_init(character, ch_vex, Engine::indices);
+	shader.Bind();
 
 	while( !glfwWindowShouldClose(window) ){
 
@@ -60,48 +91,35 @@ int main()
 		int s_state = glfwGetKey(window, GLFW_KEY_S);
 		int a_state = glfwGetKey(window, GLFW_KEY_A);
 		int d_state = glfwGetKey(window, GLFW_KEY_D);
-		if(w_state == GLFW_PRESS) ch_vely = 0.01f;
-		else if(s_state == GLFW_PRESS) ch_vely = -0.01f;
-		else ch_vely = 0;
-		if(d_state == GLFW_PRESS) ch_velx = 0.01f;
-		else if(a_state == GLFW_PRESS) ch_velx = -0.01f;
-		else ch_velx = 0;
+		if(w_state == GLFW_PRESS) vely = 0.01f;
+		else if(s_state == GLFW_PRESS) vely = -0.01f;
+		else vely = 0;
+		if(d_state == GLFW_PRESS) velx = 0.01f;
+		else if(a_state == GLFW_PRESS) velx = -0.01f;
+		else velx = 0;
 
 		if(glfwGetKey(window, GLFW_KEY_BACKSPACE) == GLFW_PRESS){
 			break;
 		}
+		//Aspect ratio correction
+		velx *= 0.77;
 		// Diagonal movement
-		if(ch_velx != 0 && ch_vely != 0){
-			ch_velx *= sin(45); ch_vely *= sin(45);
+		if(velx != 0 && vely != 0){
+			velx *= sin(45); vely *= sin(45);
 		}
 
-		Engine::is_valid_move(tilemap, character, ch_velx, ch_vely);
-		
+		IsValidMove(tilemap, player, velx, vely);
+
 		// Drawing tilemap
-		for(int i=0; i!=tilemap.height*tilemap.width; ++i){
-			Engine::translate(&tilemap.vertices[16*i], -ch_velx, -ch_vely);
-		}
-		Engine::tilemap_draw(tilemap);		
-		
+		tilemap.Move(-velx, -vely);
+		tilemap.Draw();
+	
 		// Drawing Player
-		Engine::shape_bind(character);
-		Engine::texture_bind(ch_texture.id);
-		Engine::shape_update(character, ch_vex);
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+		player.Draw();
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
-
-	//Deleting everything
-	Engine::shape_unbind();
-	Engine::texture_unbind();
-	Engine::shader_unbind();
-
-    	Engine::shader_delete(shader);
-	Engine::tilemap_free(tilemap);
-	Engine::texture_delete(ch_texture);
-	Engine::shape_free(character);	
 
 	glfwTerminate();
 

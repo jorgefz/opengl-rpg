@@ -11,6 +11,9 @@
 #include <GL/glxew.h>
 #include <GLFW/glfw3.h>
 
+
+//#define DEBUG
+
 #include "Engine.h"
 
 //#define STB_IMAGE_IMPLEMENTATION
@@ -21,44 +24,80 @@
 
 
 /*
-	TODO
 
-Editor
-- Key to switch between logic and tile grids
-- Key to save
-- New command actually creates new file
+============== Tilemap Editor ==============
+
+
+
+VERSION
+
+v0.1
+- Loads tilemap and its tileset - DONE
+- You can move around - DONE
+- Key to switch selected tile - DONE
+
+v0.2
+- Change tiles via mouse position and clicking - DONE
+- Change target tile texture with key - DONE
+- Creating new tilemap - DONE
+- Saving tilemap with key G, only if it has a spawn tile - DONE
+
+v0.3
+
+
+FUTURE
+- Key to switch between editing logic and tile grids
 - UI element that displays current chosen tile
-- Scrolling
+- Scrolling/Zooming
 
-Development
-- Find better place to put to-do.
-- Versioning system
 
-Graphical
-- Testing: make (or find) a good tileset texture
 
-Engine
-- Coordinate Systems
-	Lay out world-to-screen coordinate conversions properly
-- Tilemap: normalize values for logic grid.
-	Hence fix TILE_SPAWN value
-- UI System
-	1) Static shapes with uniform color
-	2) Make them display information (current selected tile to draw?)
 
 */
 
+//using namespace std;
 
 GLuint cooldown = 15;
 GLuint chosen_tile = 0;
 
-/*
-struct Engine::tilemap_t* tilemap_fcreate(struct Engine::tilemap_t& tilemap, string &ftilemap, string &ftileset, GLuint width, GLuint height){
-	//Create tilemap file and fill it with template/zeroes and a spawn
-	// Write to file
-	// Close tilemap
+
+std::string* TilemapWrite(std::string& ftmap, std::vector<GLuint>& logic_grid, std::vector<GLuint>& tile_grid, GLuint width, GLuint height) {
+
+	std::fstream file(ftmap.c_str(), std::ios::binary|std::ios::out|std::ios::trunc);
+	if(!file.is_open()){
+		std::cout << "Error opening file " << ftmap << std::endl;
+		return nullptr;
+	}
+	// Writing dimensions of tilemap: 1 byte width, 1 byte height
+	file.put((uchar)width);
+	file.put((uchar)height);
+	
+	// Write tile grid
+	for(int i=0; i!=width*height; ++i){
+		file.put((uchar)tile_grid[i]);
+	}
+	// Write logic grid
+	for(int i=0; i!=width*height; ++i){
+		file.put((uchar)logic_grid[i]);
+	}
+
+	file.close();
+	return &ftmap;
 }
-*/
+
+void TilemapCreate(std::string &ftmap, std::string &ftset, GLuint width, GLuint height){
+	//Create tilemap data and fill it with zeroes
+	std::vector<GLuint> logic_grid(width*height, 0);
+	std::vector<GLuint> tile_grid(width*height, 0);
+
+	//Add spawns
+	logic_grid[width*height/2] = 7; //FIX TILE_SPAWN
+	tile_grid[width*height/2] = 7;
+
+	// Write to file
+	TilemapWrite(ftmap, logic_grid, tile_grid, width, height);
+}
+
 
 bool ProcessInput(GLFWwindow* window, Engine::Tilemap &tmap, float &dx, float &dy){
 	// Key states for player movement
@@ -112,6 +151,24 @@ bool ProcessInput(GLFWwindow* window, Engine::Tilemap &tmap, float &dx, float &d
 		
 	}
 
+	// Save Tilemap
+	if( glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS ){
+		//Check for at least one spawn tile
+		bool spawn_found = false;
+		for(int i=0; i!=tmap.width*tmap.height; ++i){
+			if(tmap.logic_grid[i] == 7) spawn_found = true; //FIX SPAWN FILE
+		}
+		if(spawn_found == false) std::cout <<"You must have a spawn tile before saving!"<<std::endl;
+		else{// Write to file
+			std::cout << " Saving tilemap..." << std::endl;
+			std::vector<GLuint> logic(tmap.logic_grid, tmap.logic_grid+tmap.width*tmap.height);
+			std::vector<GLuint> tiles(tmap.tile_grid, tmap.tile_grid+tmap.width*tmap.height);
+			if(!TilemapWrite(tmap.ftmap, logic, tiles, tmap.width, tmap.height)){
+				std::cout << "Failed to write to file!" << std::endl;
+			}
+		}
+	}
+
 	if(cooldown > 0) cooldown--;
 	else cooldown = 15;
 
@@ -119,39 +176,40 @@ bool ProcessInput(GLFWwindow* window, Engine::Tilemap &tmap, float &dx, float &d
 }
 
 
-void ParseArgs(int argc, char** argv, string& ftilemap, string& ftileset){
+void ParseArgs(int argc, char** argv, std::string& ftilemap, std::string& ftileset){
 	
 	if( argc < 4 ){
-		cout << "Not enough arguments" << endl;
+		std::cout << "Not enough arguments" << std::endl;
 		exit(-1);
 	}
-	string mode = argv[1];
+	std::string mode = argv[1];
 	ftilemap  = argv[2];
 	ftileset = argv[3];
 
 	if(mode == "new"){
 		if(argc < 6){
-			cout << "Missing new tilemap dimensions" << endl;
+			std::cout << "Missing new tilemap dimensions" << std::endl;
 			exit(-1);
 		} else{
-			string swidth = argv[4];
-			string sheight = argv[5];
+			std::string swidth = argv[4];
+			std::string sheight = argv[5];
 			int width = std::stoi(swidth);
 			int height = std::stoi(sheight);
-			cout << width << " " << height << endl;
+			std::cout <<"Creating tilemap with dimensions: "<<width<<" "<<height<<std::endl;
+			TilemapCreate(ftilemap, ftileset, GLuint(width), GLuint(height));
 		}
 	} else if(mode != "load"){
-		cout << " Unknown mode " << mode << endl;
+		std::cout << " Unknown mode " << mode << std::endl;
 		exit(-1);
 	}	
-	cout << "Loading tilemap " << ftilemap << " and tileset " << ftileset <<"..."<< endl;
+	std::cout << "Loading tilemap " << ftilemap << " and tileset " << ftileset <<"..."<< std::endl;
 }
 
 
 
 int main(int argc, char** argv)
 {
-	string ftilemap, ftileset;
+	std::string ftilemap, ftileset;
 
 	ParseArgs(argc, argv, ftilemap, ftileset);
 
@@ -159,11 +217,11 @@ int main(int argc, char** argv)
 	int tileside = 50;
 
 	GLFWwindow *window;
-	window = Engine::gl_begin(1280, 720);
+	window = Engine::GLBegin(1280, 720);
 
 	// Shader
-	string vshader = "res/vertex.shader";
-	string fshader = "res/fragment.shader";
+	std::string vshader = "res/vertex.shader";
+	std::string fshader = "res/fragment.shader";
 	Engine::Shader shader;
 	shader.Init(vshader, fshader);
 	shader.Bind();
@@ -173,7 +231,7 @@ int main(int argc, char** argv)
 	tmap.Init(ftilemap, ftileset, tileside);
 
 	// Cursor
-	string texcursor_path = "res/cursor.png";
+	std::string texcursor_path = "res/cursor.png";
 	Engine::Shape shape;
 	shape.Init(texcursor_path, 50, 50);
 

@@ -5,22 +5,45 @@
 
 	2D Engine: [NAME HERE]
 
-	TODO
-- Choose a name for the Engine!
+
 - Improve error management: no preprocessor directives (GLCall, redefining assert...)i
 - Debug messages with defines
-
+- No using std
 - Learning some pixel art
 - Tilemap Portals
 
+Development
+- Find better place to put to-do.
+- Versioning system
+- Choose a name for the Engine
 
+Graphical
+- Testing: make (or find) a good tileset texture
+
+Engine
+- Coordinate Systems
+	Lay out world-to-screen coordinate conversions properly
+- Tilemap: normalize values for logic grid.
+	Hence fix TILE_SPAWN value
+- UI System
+	1) Static shapes with uniform color
+	2) Make them display information (current selected tile to draw?)
+- Naming
+	Change struct member naming to "m_name" or "name_"
+- Debug
+	Improve Debug messages: more of them, basically.
+	Place DEBUG define on editor source file - doesn't work?
+- Key Input SyStem (KISS)
+	Without having one press repeat a million times
+	Make 4 key states: not pressed, just pressed, held down, and just released.
+	Have an Engine-scope array of previously saved key states, and compare with GLFW callback.
+
+VERSIONS
 */
 
 
 #ifndef ENGINE_H
 #define ENGINE_H
-
-#define DEBUG
 
 #include <iostream>
 #include <fstream>
@@ -40,26 +63,24 @@
 #include <unistd.h>
 #endif
 
-using namespace std;
+//using namespace std;
+
 
 #define assert(x) if(!(x)) exit(-1);
-
 #define GLCall(x) do {\
 		GLClearError();\
 		x;\
-		assert(GLCheckError(#x, __FILE__, __LINE__));\
+		assert(GLCheckError(#x, __FILE__, __LINE__))\
 	} while(0);
 
 
 typedef unsigned char uchar;
 typedef unsigned int uint;
 
+
+
+
 namespace Engine {
-
-
-//================================================================
-
-extern GLuint indices[6];
 
 extern const GLuint INDICES[6];
 extern const GLuint TILE_SZ;
@@ -68,6 +89,21 @@ extern const GLuint TSET_PIX; // Side in pixels of tiles in the tileset
 extern GLuint SCR_WIDTH;
 extern GLuint SCR_HEIGHT;
 
+/*
+extern int KEYSTATES[];
+extern int GLFW_KEYS[];
+
+enum Keys{
+	KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K,
+	KEY_L, KEY_M, KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V,
+	KEY_W, KEY_X, KEY_Y, KEY_Z,
+	KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0,
+
+	//1 - 9, 0
+	//Arrows UP, DOWN, LEFT, RIGHT
+	//SPACEBAR, ENTER, SHIFT, CTRL, TAB, 
+};
+*/
 
 // Vertex data layout
 enum VertexArrayLayout{
@@ -92,26 +128,25 @@ enum TileMapLogicIndices {
 struct Texture {
 	GLuint id;
 	int width, height, channel_num;
-	string filepath;
+	std::string filepath;
 	
 	Texture(); //Constructor
 	//Texture(string& fpath, int mode=GL_RGBA); //DELETE
-	void Init(string& fpath, int mode=GL_RGBA);
+	void Init(std::string& fpath, int mode=GL_RGBA);
 	void Bind();
 	void Unbind();
 	~Texture(); //Destructor
 };
 
 struct Shader {
-	string vpath, fpath; //filepaths
+	std::string vpath, fpath; //filepaths
 	GLuint program;
 	GLuint uniform;
 	double color[4];
 	
-	// Methods
 	Shader(); //Constructor
-	void Init(string& vpath, string& fpath);
-	GLuint Compile(GLenum type, string& source);
+	void Init(std::string& vpath, std::string& fpath);
+	GLuint Compile(GLenum type, std::string& source);
 	void Bind();
 	void Unbind();
 	~Shader(); //Destructor
@@ -119,20 +154,19 @@ struct Shader {
 
 
 struct Shape {
-	GLuint vbo;		//Vertex buffer object
-	GLuint ibo;		// Index buffer object
-	GLuint vertex_num;	// Number of vertices
+	GLuint vbo, ibo; //Vertex and Index Buffer Object
+	GLuint vertex_num; // Number of vertices
 	GLuint sdims, tdims; // Spatial and texture dimensions
-	vector<float> vertices;
-	vector<GLuint> indices;
+	std::vector<float> vertices;
+	std::vector<GLuint> indices;
 	Texture texture;
 
 	// Methods
 	Shape(); //Constructor	
-	void Init(string& texture_path, GLuint sidex, GLuint sidey); // Simple square/rectangle
-	void Init(vector<float>& vertices, vector<GLuint>& indices, int sdims=2, int tdims=2); //Generic shape, no texture
+	void Init(std::string& texture_path, GLuint sidex, GLuint sidey); // Simple square/rectangle
+	void Init(std::vector<float>& vertices, std::vector<GLuint>& indices, int sdims=2, int tdims=2); //Generic shape, no texture
 	void Update(float* new_vertices = nullptr);
-	void SetTexture(string& path);
+	void SetTexture(std::string& path);
 	void SetTexture(Texture& newTexture);
 	void Bind();
 	void Unbind();
@@ -140,27 +174,26 @@ struct Shape {
 	void Move(float dx, float dy);
 	void GetCenter(float& cx, float& cy);
 	bool Collides(Shape&);
-	bool Collides(vector<float>&);
+	bool Collides(std::vector<float>&);
 	bool EnclosesPoint(float x, float y);
 	bool OnScreen();
 	~Shape(); //Destructor
-	
 };
 
 struct Tilemap {
-	int height, width, tilesize; //
+	int height, width, tilesize;
 	int *tile_grid; // Which tile texture to place
 	int *logic_grid; // Collisions, boundaries, portals, etc
-	//int *layers[]; // Graphical layers on top
-	
+	//int *layers[]; // Graphical layers on top	
 	Shape shape; //includes map vertices and indices
 	Texture tileset;
 	GLuint tset_tilenum;
+	std::string ftmap; //Filename
 
 	Tilemap(); //Constructor
-	void Init(string &tilemap_file, string &tileset_file, int tilesize = 50);
-	void Write(string &filename); //Saves tilemap on file
-	void Read(string &filename); //Reads tilemap from file
+	void Init(std::string &tilemap_file, std::string &tileset_file, int tilesize = 50);
+	void Write(std::string &filename); //Saves tilemap on file
+	void Read(std::string &filename); //Reads tilemap from file
 	void Move(float dx, float dy);
 	void CenterSpawn(); //Centers screen/player on spawn
 	void GenTileTextureCoords(int which);
@@ -180,10 +213,10 @@ void GLClearError();
 
 bool GLCheckError(const char* func, const char* file, int line);
 
-GLFWwindow* GLBegin(int width, int height, bool fullscreen);
+GLFWwindow* GLBegin(GLuint width, GLuint height, bool fullscreen=false);
 
 //Saves lines in a file on a single string
-string* FileReadLines(string& lines, const char* filepath);
+std::string* FileReadLines(std::string& lines, const char* filepath);
 
 // True if input point (x,y) is enclosed by square vertices
 bool VerticesEnclose(float* vex, float x, float y);
@@ -196,8 +229,15 @@ float* CopyPositionCoords(float *vertices, float *poscoords);
 
 void VerticesTranslate(float *vertices, float velx, float vely);
 
+// Resizes viewport if window dimensions are changed
+void glOnWindowResize(GLFWwindow* window);
+
+unsigned char* rgba(unsigned char *dest, unsigned char* data, int pixels, unsigned char alpha=255);
+
+unsigned char* rgb(unsigned char* dest, unsigned char* data, int pixels);
 
 //=================================== OLD ===================================
+/*
 struct texture_t {
 	GLuint id;
 	int width, height, channel_num;
@@ -281,25 +321,6 @@ struct tilemap_t {
 
 //Initialise OpenGL window
 GLFWwindow* gl_begin(GLuint width, GLuint height, bool fullscreen=false);
-
-// Resizes viewport if window dimensions are changed
-void glOnWindowResize(GLFWwindow* window);
-
-/*
-Converts pixel data from RGB to RGBA.
-Return data must have at least (total bytes + pixels) memory spaces.
-Fills new alpha channels with given value (default = 0)
-*/
-unsigned char* rgba(unsigned char *dest, unsigned char* data, int pixels, unsigned char alpha=0);
-
-/*
-Converts pixel data from RGBA to RGB.
-Return data must have at least (total bytes - pixels) memory spaces.
-*/
-unsigned char* rgb(unsigned char* dest, unsigned char* data, int pixels);
-
-//Saves lines in a file on a single string
-string* FileReadLines(string& lines, const char* filepath);
 
 // DELETE
 string* file_read_lines(string& lines, const char* filepath);
@@ -402,20 +423,13 @@ void tilemap_init(struct tilemap_t &tilemap, int tilenum, int tilesize=50, int x
 void tilemap_draw(struct tilemap_t &tilemap);
 
 void tilemap_free(struct tilemap_t &tilemap);
+*/
 
 // ========================= OTHER FUNCTIONS =================================
-
-
-//Shape: GetCenter(&cx, &cy), Collides(Shape), EnclosesPoint(x, y), OnScreen()
-//Tilemap: GetTile(pos)
-//Other: IsValidMove 
-
+/*
 void shape_get_center(float *vertices, float &cx, float &cy);
 
-/*
-Returns true if two squares overlap,
-by checking if any of the four vertices of a square is within the other square.
-*/
+//Returns true if two squares overlap
 bool shapes_collide(float *shape1, float *shape2);
 
 // True if a given point (x,y) is within a shape
@@ -433,7 +447,7 @@ bool is_on_screen(float *vertices);
 //Extracts tile data from atlas tile map, stores it in heap, and returns a pointer to it.
 // DELETE
 unsigned char* load_tileset(const char *atlas_filename, int *_tile_bytes, int *_tile_num, int tile_side=8);
-
+*/
 
 } // namespace Engine
 
