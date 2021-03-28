@@ -43,11 +43,10 @@ v0.2
 - Saving tilemap with key G, only if it has a spawn tile - DONE
 
 v0.3
-
+- UI Element shows current tile to draw - DONE
 
 FUTURE
 - Key to switch between editing logic and tile grids
-- UI element that displays current chosen tile
 - Scrolling/Zooming
 
 
@@ -91,26 +90,25 @@ void TilemapCreate(std::string &ftmap, std::string &ftset, GLuint width, GLuint 
 	std::vector<GLuint> tile_grid(width*height, 0);
 
 	//Add spawns
-	logic_grid[width*height/2] = 7; //FIX TILE_SPAWN
-	tile_grid[width*height/2] = 7;
+	logic_grid[width*height/2] = Engine::L_SPAWN; //FIX TILE_SPAWN
+	tile_grid[width*height/2] = Engine::L_SPAWN;
 
 	// Write to file
 	TilemapWrite(ftmap, logic_grid, tile_grid, width, height);
 }
 
 
-bool ProcessInput(GLFWwindow* window, Engine::Tilemap &tmap, float &dx, float &dy){
-	// Key states for player movement
-	int w_state = glfwGetKey(window, GLFW_KEY_W);
-	int s_state = glfwGetKey(window, GLFW_KEY_S);
-	int a_state = glfwGetKey(window, GLFW_KEY_A);
-	int d_state = glfwGetKey(window, GLFW_KEY_D);
-	if(w_state == GLFW_PRESS) dy = 0.01f;
-	else if(s_state == GLFW_PRESS) dy = -0.01f;
+bool ProcessInput(GLFWwindow* window, Engine::Shape &cursor, Engine::Tilemap &tmap, float &dx, float &dy){
+	
+	// Movement	
+	if(glfwGetKey(window, GLFW_KEY_W)==GLFW_PRESS or glfwGetKey(window, GLFW_KEY_UP)==GLFW_PRESS) dy=0.01f;
+	else if(glfwGetKey(window, GLFW_KEY_S)==GLFW_PRESS or glfwGetKey(window, GLFW_KEY_DOWN)==GLFW_PRESS) dy=-0.01f;
 	else dy = 0;
-	if(d_state == GLFW_PRESS) dx = 0.01f;
-	else if(a_state == GLFW_PRESS) dx = -0.01f;
-	else dx = 0;	
+
+	if(glfwGetKey(window, GLFW_KEY_D)==GLFW_PRESS or glfwGetKey(window, GLFW_KEY_RIGHT)==GLFW_PRESS) dx=0.01f;
+	else if(glfwGetKey(window, GLFW_KEY_A)==GLFW_PRESS or glfwGetKey(window, GLFW_KEY_LEFT)==GLFW_PRESS) dx=-0.01f;
+	else dx = 0;
+
 	// Correct for aspect ratio deformations
 	dx *= 0.77;
 	// Diagonal movement
@@ -125,9 +123,10 @@ bool ProcessInput(GLFWwindow* window, Engine::Tilemap &tmap, float &dx, float &d
 	}
 	
 	// Change tile to draw
-	if(glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS and cooldown == 15){
-		if(chosen_tile == 7) chosen_tile = 0;
+	if(glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS and Engine::KEYSTATES[GLFW_KEY_SPACE] != GLFW_PRESS){
+		if(chosen_tile == tmap.tset_tilenum-1) chosen_tile = 0;
 		else chosen_tile++;
+		cursor.SetTile(chosen_tile);
 	}
 
 	// Change tile option, mouse cursor
@@ -136,7 +135,7 @@ bool ProcessInput(GLFWwindow* window, Engine::Tilemap &tmap, float &dx, float &d
 		int sz_x, sz_y; // from upper left corner
 		glfwGetCursorPos(window, &mouse_x, &mouse_y);
 		glfwGetFramebufferSize(window, &sz_x, &sz_y);
-			
+		
 		// Mouse on screen
 		if(mouse_x>=0 and mouse_x<sz_x and mouse_y>=0 and mouse_y<sz_y){
 			//Get fractional positions
@@ -152,11 +151,11 @@ bool ProcessInput(GLFWwindow* window, Engine::Tilemap &tmap, float &dx, float &d
 	}
 
 	// Save Tilemap
-	if( glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS ){
+	if( glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS and Engine::KEYSTATES[GLFW_KEY_G] != GLFW_PRESS ){
 		//Check for at least one spawn tile
 		bool spawn_found = false;
 		for(int i=0; i!=tmap.width*tmap.height; ++i){
-			if(tmap.logic_grid[i] == 7) spawn_found = true; //FIX SPAWN FILE
+			if(tmap.logic_grid[i] == Engine::L_SPAWN) spawn_found = true; //FIX SPAWN FILE
 		}
 		if(spawn_found == false) std::cout <<"You must have a spawn tile before saving!"<<std::endl;
 		else{// Write to file
@@ -215,13 +214,14 @@ int main(int argc, char** argv)
 
     	float dx=0, dy=0;
 	int tileside = 50;
+	std::string vshader = "res/vertex.shader";
+	std::string fshader = "res/fragment.shader";
+	std::string texcursor_path = "res/cursor.png";
 
 	GLFWwindow *window;
 	window = Engine::GLBegin(1280, 720);
 
 	// Shader
-	std::string vshader = "res/vertex.shader";
-	std::string fshader = "res/fragment.shader";
 	Engine::Shader shader;
 	shader.Init(vshader, fshader);
 	shader.Bind();
@@ -231,22 +231,22 @@ int main(int argc, char** argv)
 	tmap.Init(ftilemap, ftileset, tileside);
 
 	// Cursor
-	std::string texcursor_path = "res/cursor.png";
 	Engine::Shape shape;
-	shape.Init(texcursor_path, 50, 50);
+	shape.Init(ftileset, 100, 100);	
+	shape.SetPosition(110, Engine::SCR_HEIGHT-110);
+	shape.SetTile(0);
 
-	
 	while( !glfwWindowShouldClose(window) ){
-
 		glClear(GL_COLOR_BUFFER_BIT);
-
-		ProcessInput(window, tmap, dx, dy);	
+		ProcessInput(window, shape, tmap, dx, dy);	
 		
+		//Update
 		tmap.Move(-dx, -dy);
 		tmap.Draw();
-
 		shape.Draw();
-		
+
+		//Render
+		Engine::UpdateKeyStates(window);
 		Engine::glOnWindowResize(window);
 		glfwSwapBuffers(window);
 		glfwPollEvents();

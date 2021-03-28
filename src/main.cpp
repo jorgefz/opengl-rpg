@@ -28,7 +28,7 @@ bool IsValidMove(Engine::Tilemap &tmap, Engine::Shape &player, float &velx, floa
 	// x movement	
 	player.Move(velx, 0);	
 	for(int i=0; i!=tmap.height*tmap.width; ++i){
-		if(tmap.logic_grid[i] != Engine::TILE_BOUND) continue;
+		if(tmap.logic_grid[i] != Engine::TILE_WALL) continue;
 		// FIX THIS - GetTileVert method and shape.Collides accepts float array
 		std::vector<float> tile_vert(&tmap.shape.vertices[16*i], &tmap.shape.vertices[16*i]+16);
 		if(player.Collides(tile_vert)){
@@ -42,7 +42,7 @@ bool IsValidMove(Engine::Tilemap &tmap, Engine::Shape &player, float &velx, floa
 	// y movement
 	player.Move(0, vely);
 	for(int i=0; i!=tmap.height*tmap.width; ++i){
-		if(tmap.logic_grid[i] != Engine::TILE_BOUND) continue;
+		if(tmap.logic_grid[i] != Engine::TILE_WALL) continue;
 		// FIX THIS - GetTileVert method and shape.Collides accepts float array
 		std::vector<float> tile_vert(&tmap.shape.vertices[16*i], &tmap.shape.vertices[16*i]+16);
 		if(player.Collides(tile_vert)){
@@ -66,8 +66,9 @@ int main()
 	
 	int side = 55;
     	float velx=0, vely=0;
-	std::string tm = "test3.tm";
-	std::string ts = "res/tile_test2.png";
+	std::string tm = "res/test3.tm";
+	//std::string ts = "res/tile_test2.png";
+	std::string ts = "res/tileset.png";
 	std::string vshader("res/vertex.shader");
 	std::string fshader("res/fragment.shader");
 	std::string player_tex("res/player.jpg");
@@ -86,26 +87,24 @@ int main()
 
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		// Key states for player movement
-		int w_state = glfwGetKey(window, GLFW_KEY_W);
-		int s_state = glfwGetKey(window, GLFW_KEY_S);
-		int a_state = glfwGetKey(window, GLFW_KEY_A);
-		int d_state = glfwGetKey(window, GLFW_KEY_D);
-		if(w_state == GLFW_PRESS) vely = 0.01f;
-		else if(s_state == GLFW_PRESS) vely = -0.01f;
+		// Key states for player movement	
+		if(glfwGetKey(window, GLFW_KEY_W)==GLFW_PRESS) vely = 0.01f;
+		else if(glfwGetKey(window, GLFW_KEY_S)==GLFW_PRESS) vely = -0.01f;
 		else vely = 0;
-		if(d_state == GLFW_PRESS) velx = 0.01f;
-		else if(a_state == GLFW_PRESS) velx = -0.01f;
+	
+		if(glfwGetKey(window, GLFW_KEY_D)==GLFW_PRESS) velx = 0.01f;
+		else if(glfwGetKey(window, GLFW_KEY_A)==GLFW_PRESS) velx = -0.01f;
 		else velx = 0;
-
-		if(glfwGetKey(window, GLFW_KEY_BACKSPACE) == GLFW_PRESS){
-			break;
-		}
+	
 		//Aspect ratio correction
 		velx *= 0.77;
 		// Diagonal movement
 		if(velx != 0 && vely != 0){
 			velx *= sin(45); vely *= sin(45);
+		}
+
+		if(glfwGetKey(window, GLFW_KEY_BACKSPACE) == GLFW_PRESS){
+			glfwSetWindowShouldClose(window, GLFW_TRUE);
 		}
 
 		IsValidMove(tilemap, player, velx, vely);
@@ -116,7 +115,9 @@ int main()
 	
 		// Drawing Player
 		player.Draw();
-
+		
+		Engine::UpdateKeyStates(window);
+		Engine::glOnWindowResize(window);
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
